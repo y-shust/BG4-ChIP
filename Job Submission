@@ -1,0 +1,38 @@
+# Write a PBS job submission script for FastQC:
+# - open vim editor to create/edit the script
+vim fastqc.pbs
+
+# Did the file save correctly?
+# - list contents again to confirm fastqc.pbs appeared
+ls
+
+# What does my job script actually contain?
+# - print file contents to terminal
+cat fastqc.pbs
+
+(Env) [yt2725@login-ai ChIP]$ cat fastqc.pbs                                                                                                                                                                                                  
+(Env) [yt2725@login-ai ChIP]$ cat fastqc.pbs
+#!/bin/bash                                                                                                                                                                                                                                   
+#PBS -lwalltime=08:00:00                                                                                                                                                                                                                      
+#PBS -lselect=1:ncpus=8:mem=16gb                                                                                                                                                                                                              
+                                                                                                                                                                                                                                              
+module load miniforge/3                                                                                                                                                                                                                       
+eval "$(~/miniforge3/bin/conda shell.bash hook)"                                                                                                                                                                                              
+conda activate Env                                                                                                                                                                                                                            
+                                                                                                                                                                                                                                              
+fastqcpath="/rds/general/project/diantonio/live/Yaryna/ChIP"                                                                                                                                                                                  
+                                                                                                                                                                                                                                              
+for file in ${fastqcpath}/*.fq.gz                                                                                                                                                                                                             
+do                                                                                                                                                                                                                                            
+fastqc $file -o "$fastqcpath/fq.gz"                                                                                                                                                                                                           
+done            
+
+# Submit the job to the PBS scheduler:
+# - returns a job ID confirming submission
+qsub fastqc.pbs
+
+# returns a name, such as "2957516.pbs-7"      
+# check the status of the job:
+qstat 2957516.pbs-7  
+
+# type ls to see if the new files appeared in your folder upon job completion
