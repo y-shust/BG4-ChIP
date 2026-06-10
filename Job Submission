@@ -3,6 +3,27 @@
 # - open vim editor to create/edit the script (while you're in the folder with your files)
 vim fastqc.pbs
 
+#new window opens, fill in:
+#!/bin/bash
+#PBS -lwalltime=08:00:00
+#PBS -lselect=1:ncpus=8:mem=16gb
+
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate Env
+
+fastqcpath="/rds/general/project/diantonio/live/Yaryna/ChIP"
+
+for file in ${fastqcpath}/*.fq.gz
+do
+fastqc $file -o "$fastqcpath"
+done
+
+#to escape thiswindow:
+#press esc , "insert" is gone (reversible by pressing i) , :wq, esc
+# to come back, "vim name", "i"
+
+
 # Did the file save correctly?
 # - list contents again to confirm fastqc.pbs appeared
 ls
@@ -19,3 +40,8 @@ qsub fastqc.pbs
 qstat 2957516.pbs-7  
 
 # type ls to see if the new files appeared in your folder upon job completion, to validate job completion
+
+
+
+
+# repeat the previous command by presing arrow up
