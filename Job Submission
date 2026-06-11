@@ -1,26 +1,27 @@
 # Write a PBS job submission script for FastQC:
 
 # - open vim editor to create/edit the script (while you're in the folder with your files)
-vim fastqc.pbs
+vim fastqc.pbs 
+# or vim any_other_job_name_like_index_pbs
 
 #new window opens, fill in:
-#!/bin/bash
-#PBS -lwalltime=08:00:00
-#PBS -lselect=1:ncpus=8:mem=16gb
+     #!/bin/bash
+     #PBS -lwalltime=08:00:00
+     #PBS -lselect=1:ncpus=8:mem=16gb
 
-module load miniforge/3
-eval "$(~/miniforge3/bin/conda shell.bash hook)"
-conda activate Env
+     module load miniforge/3
+     eval "$(~/miniforge3/bin/conda shell.bash hook)"
+     conda activate Env
 
-fastqcpath="/rds/general/project/diantonio/live/Yaryna/ChIP"
+     fastqcpath="/rds/general/project/diantonio/live/Yaryna/ChIP"
 
-for file in ${fastqcpath}/*.fq.gz
-do
-fastqc $file -o "$fastqcpath"
-done
+     for file in ${fastqcpath}/*.fq.gz
+     do
+     fastqc $file -o "$fastqcpath"
+     done
 
-#to escape thiswindow:
-#press esc , "insert" is gone (reversible by pressing i) , :wq, esc
+# to escape this window:
+# press esc , "insert" is gone (reversible by pressing i) , :wq, enter
 # to come back, "vim name", "i"
 
 
@@ -30,18 +31,24 @@ ls
 
 # What does my job script actually contain?
 # - print file contents to terminal
-cat fastqc.pbs
+cat jobname.pbs
 
 # Submit the job to the PBS scheduler:
-qsub fastqc.pbs
+qsub jobname.pbs
 
-# - returns a job ID confirming submission, such as "2957516.pbs-7"      
+# - this returns a job ID confirming submission, such as "2957516.pbs-7"      
 # check the status of the job:
 qstat 2957516.pbs-7  
 
 # type ls to see if the new files appeared in your folder upon job completion, to validate job completion
 
+# to unzip the file type gunzip file_name, like:
+gunzip hg38.fa.gz
 
 
 
 # repeat the previous command by presing arrow up
+
+
+
+
