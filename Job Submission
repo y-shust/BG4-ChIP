@@ -45,7 +45,10 @@ qstat 2957516.pbs-7
 # to unzip the file type gunzip file_name, like:
 gunzip hg38.fa.gz
 
-
+# to view parts of the file to check if it looks ok:
+head name_of_file
+# or
+tail name_of_file
 
 # repeat the previous command by presing arrow up
 
