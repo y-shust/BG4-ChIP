@@ -1,0 +1,23 @@
+vim blacklist.pbs
+
+#!/bin/bash
+#PBS -lwalltime=08:00:00
+#PBS -lselect=1:ncpus=8:mem=32gb
+
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate Env
+
+bam_dir=/rds/general/project/diantonio/live/Yaryna/ChIP
+blacklist=/rds/general/project/diantonio/live/tools/blacklisted_regions/hg38-blacklist.v2.bed
+
+for file in $bam_dir/*.dedup.bam
+do
+name=`basename $file .dedup.bam`
+bedtools intersect -v -abam $file -b $blacklist > $bam_dir/$name.bl.dedup.bam
+done
+
+
+# trick - add this after hashtags to receive notifications, a=borted, b=begins, e=end
+#PBS -M yt2725@ic.ac.uk
+#PBS -m abe
