@@ -1,1 +1,9 @@
-
+samtools addreplacerg -r "ID:$name" -r "SM:$name" -r "PL:ILLUMINA" \
+    -o $bam_dir/$name.rg.bam $file
+picard MarkDuplicates REMOVE_DUPLICATES=TRUE \
+    TMP_DIR=$bam_dir/tmp \
+    I=$bam_dir/$name.rg.bam \
+    O=$bam_dir/$name.dedup.bam \
+    M=$bam_dir/$name.dedup.metrics.txt
+samtools index $bam_dir/$name.dedup.bam
+done
