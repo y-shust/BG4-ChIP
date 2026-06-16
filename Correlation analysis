@@ -1,0 +1,42 @@
+vim correlation.pbs
+
+#!/bin/bash
+#PBS -lwalltime=08:00:00
+#PBS -lselect=1:ncpus=8:mem=32gb
+
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate deeptools_env
+
+bam_dir=/rds/general/project/diantonio/live/Yaryna/ChIP
+
+# Step 1: Generate correlation matrix
+multiBamSummary bins \
+    --bamfiles $bam_dir/CS1AN_CSB_BG4_Bio3_Tech1.bl.dedup.bam \
+               $bam_dir/CS1AN_CSB_BG4_Bio3_Tech2.bl.dedup.bam \
+               $bam_dir/CS1AN_CSB_Input_Bio3.bl.dedup.bam \
+    --binSize 5000 \
+    --minMappingQuality 20 \
+    --numberOfProcessors 8 \
+    -o $bam_dir/CS1AN_CSB_CorrelationMatrix.npz
+
+# Step 2: Visualise correlation matrix
+plotCorrelation \
+    -in $bam_dir/CS1AN_CSB_CorrelationMatrix.npz \
+    --corMethod pearson \
+    --whatToPlot heatmap \
+    --colorMap RdYlBu \
+    --plotNumbers \
+    --removeOutliers \
+    -o $bam_dir/CS1AN_CSB_CorrelationMatrix.png
+
+
+
+qsub correlation.pbs
+cat correlation.pbs.e3005498
+ls *.npz *.png
+
+# Tech1 vs Tech2 = 0.98 — your two BG4 technical replicates are extremely highly correlated, 
+# which confirms they are consistent and reproducible
+# Input vs Tech1/Tech2 = 0.73 — the input correlates less with the BG4 samples, 
+# which is expected since the input has a different signal distribution
