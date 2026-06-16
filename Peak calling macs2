@@ -1,0 +1,95 @@
+mkdir /rds/general/project/diantonio/live/Yaryna/ChIP/macs2
+
+vim macs2.pbs
+
+#!/bin/bash
+#PBS -lwalltime=08:00:00
+#PBS -lselect=1:ncpus=8:mem=32gb
+
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate macs2_env
+
+bam_dir=/rds/general/project/diantonio/live/Yaryna/ChIP
+
+# Tech1 vs Input
+macs2 callpeak \
+    -t $bam_dir/CS1AN_CSB_BG4_Bio3_Tech1.bl.dedup.bam \
+    -c $bam_dir/CS1AN_CSB_Input_Bio3.bl.dedup.bam \
+    -f BAMPE \
+    -n CS1AN_CSB_BG4_Bio3_Tech1 \
+    --outdir $bam_dir/macs2
+
+# Tech2 vs Input
+macs2 callpeak \
+    -t $bam_dir/CS1AN_CSB_BG4_Bio3_Tech2.bl.dedup.bam \
+    -c $bam_dir/CS1AN_CSB_Input_Bio3.bl.dedup.bam \
+    -f BAMPE \
+    -n CS1AN_CSB_BG4_Bio3_Tech2 \
+    --outdir $bam_dir/macs2
+
+# Type dG to delete all content
+
+
+vim macs2.pbs
+
+#!/bin/bash
+#PBS -lwalltime=08:00:00
+#PBS -lselect=1:ncpus=8:mem=32gb
+
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate macs2_env
+
+bam_dir=/rds/general/project/diantonio/live/Yaryna/ChIP
+
+# Tech1 vs Input
+macs2 callpeak \
+    -t $bam_dir/CS1AN_CSB_BG4_Bio3_Tech1.bl.dedup.bam \
+    -c $bam_dir/CS1AN_CSB_Input_Bio3.bl.dedup.bam \
+    -f BAMPE \
+    -n CS1AN_CSB_BG4_Bio3_Tech1 \
+    --outdir $bam_dir/macs2 \
+    --nomodel --extsize 200
+
+# Tech2 vs Input
+macs2 callpeak \
+    -t $bam_dir/CS1AN_CSB_BG4_Bio3_Tech2.bl.dedup.bam \
+    -c $bam_dir/CS1AN_CSB_Input_Bio3.bl.dedup.bam \
+    -f BAMPE \
+    -n CS1AN_CSB_BG4_Bio3_Tech2 \
+    --outdir $bam_dir/macs2 \
+    --nomodel --extsize 200
+
+
+
+
+vim macs2.pbs
+
+#!/bin/bash
+#PBS -lwalltime=08:00:00
+#PBS -lselect=1:ncpus=8:mem=32gb
+
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate macs2_env
+
+bam_dir=/rds/general/project/diantonio/live/Yaryna/ChIP
+
+# Tech1 vs Input
+macs2 callpeak \
+    -t $bam_dir/CS1AN_CSB_BG4_Bio3_Tech1.bl.dedup.bam \
+    -c $bam_dir/CS1AN_CSB_Input_Bio3.bl.dedup.bam \
+    -f BAMPE \
+    -n CS1AN_CSB_BG4_Bio3_Tech1 \
+    --outdir $bam_dir/macs2 \
+    --llocal 0
+
+# Tech2 vs Input
+macs2 callpeak \
+    -t $bam_dir/CS1AN_CSB_BG4_Bio3_Tech2.bl.dedup.bam \
+    -c $bam_dir/CS1AN_CSB_Input_Bio3.bl.dedup.bam \
+    -f BAMPE \
+    -n CS1AN_CSB_BG4_Bio3_Tech2 \
+    --outdir $bam_dir/macs2 \
+    --llocal 0
