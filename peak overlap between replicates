@@ -1,0 +1,27 @@
+##Intersecting 3x repeats; using multiinter (activate conda with bedtools)
+
+conda activate Env
+
+
+bedtools multiinter -i FILE_NAME_Bio1.bed FILE_NAME_Bio2.bed FILE_NAME_Bio2.bed | awk '$4 >= 2' OFS="\t" > FILE_NAME_Multiinter.bed
+awk 'BEGIN {OFS="\t"} {print $1, $2, $3}' FILE_NAME_Multiinter.bed > FILE_NAME_Multiinter_Min.bed #the multiinter bed file includes many columns that confuses IGV. This command prints the 3 important columns of a bed file to ensure IGV can open the file
+bedtools merge -i CS1AN_WT_BG4_Multiinter_Min.bed > CS1AN_WT_BG4_Multiinter_Min_Merged.bed #multiinter causes peak "fragmentation". This command merges fragmented peaks.
+
+
+bam_dir=/rds/general/project/diantonio/live/Yaryna/ChIP
+
+# Find overlapping peaks between the two replicates (keep peaks in at least 2 samples)
+bedtools multiinter \
+    -i $bam_dir/macs2/CS1AN_CSB_BG4_Bio3_Tech1_peaks.narrowPeak \
+       $bam_dir/macs2/CS1AN_CSB_BG4_Bio3_Tech2_peaks.narrowPeak \
+    | awk '$4 >= 2' OFS="\t" > $bam_dir/macs2/CS1AN_CSB_BG4_Bio3_Multiinter.bed
+
+# Keep only the 3 essential columns for IGV
+awk 'BEGIN {OFS="\t"} {print $1, $2, $3}' \
+    $bam_dir/macs2/CS1AN_CSB_BG4_Bio3_Multiinter.bed \
+    > $bam_dir/macs2/CS1AN_CSB_BG4_Bio3_Multiinter_Min.bed
+
+# Merge fragmented peaks
+bedtools merge \
+    -i $bam_dir/macs2/CS1AN_CSB_BG4_Bio3_Multiinter_Min.bed \
+    > $bam_dir/macs2/CS1AN_CSB_BG4_Bio3_Multiinter_Min_Merged.bed
