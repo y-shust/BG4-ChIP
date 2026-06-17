@@ -29,7 +29,7 @@ mkdir VhIP
 
 # Copy data to the YT folder:
 # copy 1 file:
-cp CS1AN_CSB_BG4_Bio3_Tech1_R1.fq.gz /rds/general/project/diantonio/live/Yaryna/ChIP
+cp CS1AN_CSB_BG4_Bio3_Tech1_R1.fq.gz /rds/general/project/diantonio/live/Yaryna/ChIP_WT
 # copy several files with *
 cp CS1AN_CSB_BG4_Bio3_Tech*_R*.fq.gz /rds/general/project/diantonio/live/Yaryna/ChIP
 
