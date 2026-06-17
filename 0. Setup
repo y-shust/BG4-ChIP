@@ -39,4 +39,16 @@ cp CS1AN_CSB_BG4_Bio3_Tech*_R*.fq.gz /rds/general/project/diantonio/live/Yaryna/
 conda activate Env
 conda install -n Env fastqc
 conda install -n Env -c bioconda fastqc
+# somewhere here you should specify the python version u want to use
 
+FastQC
+Bowtie2 alignment to hg38
+SAM → BAM conversion
+Coordinate sorting
+Duplicate removal (Picard, with TMP_DIR and read groups)
+Blacklist filtering (bedtools intersect)
+BAM indexing
+Bigwig generation (bamCoverage, deeptools_env)
+Correlation matrix (multiBamSummary + plotCorrelation, deeptools_env)
+Peak calling (macs3, macs3_env)
+Multiinter + merge
