@@ -18,6 +18,4 @@ bedtools intersect -v -abam $file -b $blacklist > $bam_dir/$name.bl.dedup.bam
 done
 
 
-# trick - add this after hashtags to receive notifications, a=borted, b=begins, e=end
-#PBS -M yt2725@ic.ac.uk
-#PBS -m abe
+
