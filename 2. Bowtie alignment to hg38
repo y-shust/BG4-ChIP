@@ -4,7 +4,7 @@ module load miniforge/3
 eval "$(~/miniforge3/bin/conda shell.bash hook)"
 -n Env -c bioconda bowtie2
 
-vim
+vim align.pbs
 
 #!/bin/bash
 #PBS -lwalltime=08:00:00
