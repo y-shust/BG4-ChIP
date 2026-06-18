@@ -19,3 +19,6 @@ done
 
 
 
+cat blacklist.pbs.e*
+ls *.bl.dedup.bam
+
