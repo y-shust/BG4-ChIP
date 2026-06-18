@@ -1,0 +1,17 @@
+vim index_bl.pbs
+
+#!/bin/bash
+#PBS -lwalltime=02:00:00
+#PBS -lselect=1:ncpus=8:mem=16gb
+
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate Env
+
+bam_dir=/rds/general/project/diantonio/live/Yaryna/ChIP_WT
+
+for file in $bam_dir/*.bl.dedup.bam
+do
+samtools index $file
+done
+
