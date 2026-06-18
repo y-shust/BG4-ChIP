@@ -1,1 +1,23 @@
 
+#!/bin/bash
+#PBS -lwalltime=08:00:00
+#PBS -lselect=1:ncpus=8:mem=32gb
+
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate Env
+
+bam_dir=/rds/general/project/diantonio/live/Yaryna/ChIP_WT
+
+for file in $bam_dir/*.sorted.bam
+do
+name=`basename $file .sorted.bam`
+samtools addreplacerg -r "ID:$name" -r "SM:$name" -r "PL:ILLUMINA" \
+    -o $bam_dir/$name.rg.bam $file
+picard MarkDuplicates REMOVE_DUPLICATES=TRUE \
+    TMP_DIR=$bam_dir/tmp \
+    I=$bam_dir/$name.rg.bam \
+    O=$bam_dir/$name.dedup.bam \
+    M=$bam_dir/$name.dedup.metrics.txt
+samtools index $bam_dir/$name.dedup.bam
+done
