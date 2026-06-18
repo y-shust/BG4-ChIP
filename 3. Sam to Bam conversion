@@ -1,3 +1,5 @@
+vim bam.pbs
+
 #!/bin/bash
 #PBS -lwalltime=08:00:00
 #PBS -lselect=1:ncpus=8:mem=16gb
