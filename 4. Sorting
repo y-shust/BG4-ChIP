@@ -7,3 +7,21 @@ picard MarkDuplicates REMOVE_DUPLICATES=TRUE \
     M=$bam_dir/$name.dedup.metrics.txt
 samtools index $bam_dir/$name.dedup.bam
 done
+
+
+
+#!/bin/bash
+#PBS -lwalltime=08:00:00
+#PBS -lselect=1:ncpus=8:mem=32gb
+
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate Env
+
+bam_dir=/rds/general/project/diantonio/live/Yaryna/ChIP_WT
+
+for file in $bam_dir/*.bam
+do
+name=`basename $file .bam`
+samtools sort -o $bam_dir/$name.sorted.bam -O bam -T $bam_dir/temp_$name $file
+done
