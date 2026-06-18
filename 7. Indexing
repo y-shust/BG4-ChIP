@@ -16,5 +16,6 @@ samtools index $file
 done
 
 
-
+cat index_bl.pbs.e*
+ls *.bl.dedup.bam.bai
 
