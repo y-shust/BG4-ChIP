@@ -34,7 +34,7 @@ cp CS1AN_CSB_BG4_Bio3_Tech1_R1.fq.gz /rds/general/project/diantonio/live/Yaryna/
 cp CS1AN_CSB_BG4_Bio3_Tech*_R*.fq.gz /rds/general/project/diantonio/live/Yaryna/ChIP
 
 
-# My folder address: /rds/general/project/diantonio/live/Yaryna/ChIP_WT
+# My folder address: cd /rds/general/project/diantonio/live/Yaryna/ChIP_WT
 
 conda activate Env
 conda install -n Env fastqc
