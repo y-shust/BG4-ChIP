@@ -1,3 +1,5 @@
+vim dedup.pbs
+
 
 #!/bin/bash
 #PBS -lwalltime=08:00:00
@@ -21,3 +23,7 @@ picard MarkDuplicates REMOVE_DUPLICATES=TRUE \
     M=$bam_dir/$name.dedup.metrics.txt
 samtools index $bam_dir/$name.dedup.bam
 done
+
+
+cat dedup.pbs.e*
+ls *.dedup.bam
