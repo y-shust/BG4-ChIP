@@ -17,3 +17,8 @@ name=`basename $file .sam`
 samtools view -F 2308 -b -q 10 -@ $THREADS $file -o $sam_dir/$name.bam
 done
 
+
+
+
+cat bam.pbs.e*
+ls /rds/general/project/diantonio/live/Yaryna/ChIP_WT/*.bam
