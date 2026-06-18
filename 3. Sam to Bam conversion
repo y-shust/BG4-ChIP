@@ -1,1 +1,17 @@
+#!/bin/bash
+#PBS -lwalltime=08:00:00
+#PBS -lselect=1:ncpus=8:mem=16gb
+
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate Env
+
+
+sam_dir=/rds/general/user/yt2725/projects/diantonio/live/Yaryna/ChIP_WT
+for file in $sam_dir/*.sam
+do
+name=`basename $file .sam`
+samtools view -F 2308 -b -q 10 $sam_dir/$name.sam > $name.bam
+done
+cp *.bam $sam_dir
 
