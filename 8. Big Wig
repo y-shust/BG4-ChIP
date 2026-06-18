@@ -16,3 +16,8 @@ name=`basename $file .bl.dedup.bam`
 bamCoverage -p 2 --normalizeUsing RPGC --effectiveGenomeSize 2700000000 -bs 5 -e \
     --minMappingQuality 20 -b $file -o $bam_dir/${name}.hg38.uniq.bw
 done
+
+
+
+cat bamcoverage.pbs.e*
+ls *.bw
