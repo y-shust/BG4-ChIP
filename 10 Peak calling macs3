@@ -1,0 +1,41 @@
+mkdir /rds/general/project/diantonio/live/Yaryna/ChIP/macs3
+
+
+vim macs3.pbs
+
+#!/bin/bash
+#PBS -lwalltime=08:00:00
+#PBS -lselect=1:ncpus=8:mem=32gb
+
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate macs3_env
+
+bam_dir=/rds/general/project/diantonio/live/Yaryna/ChIP
+
+# Tech1 vs Input
+macs3 callpeak \
+    -t $bam_dir/CS1AN_CSB_BG4_Bio3_Tech1.bl.dedup.bam \
+    -c $bam_dir/CS1AN_CSB_Input_Bio3.bl.dedup.bam \
+    -f BAMPE \
+    -p 0.0001 \
+    --keep-dup all \
+    -n CS1AN_CSB_BG4_Bio3_Tech1 \
+    --outdir $bam_dir/macs3
+
+# Tech2 vs Input
+macs3 callpeak \
+    -t $bam_dir/CS1AN_CSB_BG4_Bio3_Tech2.bl.dedup.bam \
+    -c $bam_dir/CS1AN_CSB_Input_Bio3.bl.dedup.bam \
+    -f BAMPE \
+    -p 0.0001 \
+    --keep-dup all \
+    -n CS1AN_CSB_BG4_Bio3_Tech2 \
+    --outdir $bam_dir/macs3
+
+
+qsub macs3.pbs
+
+
+cat macs3.pbs.e*
+ls macs3/
