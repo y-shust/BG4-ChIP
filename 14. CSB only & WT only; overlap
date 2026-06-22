@@ -12,3 +12,15 @@ bedtools intersect -v \
     > /rds/general/project/diantonio/live/Yaryna/ChIP_WT/WTonlyPeaks.bed
 
 wc -l /rds/general/project/diantonio/live/Yaryna/ChIP_WT/WTonlyPeaks.bed
+
+
+#overlapped:
+
+cd /rds/general/project/diantonio/live/Yaryna
+
+bedtools intersect -u \
+    -a /rds/general/project/diantonio/live/Yaryna/ChIP/macs3/CS1AN_CSB_BG4_Bio3_Multiinter_Min_Merged.bed \
+    -b /rds/general/project/diantonio/live/Yaryna/ChIP_WT/macs3/CS1AN_WT_BG4_Bio1_Multiinter_Min_Merged.bed \
+    > /rds/general/project/diantonio/live/Yaryna/SharedPeaks.bed
+
+wc -l /rds/general/project/diantonio/live/Yaryna/SharedPeaks.bed
