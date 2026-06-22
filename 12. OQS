@@ -1,0 +1,5 @@
+wget https://ftp.ncbi.nlm.nih.gov/geo/series/GSE63nnn/GSE63874/suppl/GSE63874%5FNa%5FK%5Fminus%5Fhits%5Fintersect%2Ebed%2Egz
+wget https://ftp.ncbi.nlm.nih.gov/geo/series/GSE63nnn/GSE63874/suppl/GSE63874%5FNa%5FK%5Fplus%5Fhits%5Fintersect%2Ebed%2Egz
+cat GSE63874_Na_K_PDS_plus_hits_intersect.bed.gz GSE63874_Na_PDS_plus_hits_intersect.bed.gz | sort -k1,1 -k2,2n > GSE63874_Na_K_PDS_merged_hits_intersect.bed.gz (edited) 
+bedtools intersect -u -a name.bed -b  GSE63874_Na_K_PDS_merged_hits_intersect.bed > overlap.bed
+wc -l
