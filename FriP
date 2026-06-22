@@ -1,0 +1,17 @@
+cd /rds/general/project/diantonio/live/Yaryna/ChIP
+
+samtools view -c -F 4 CS1AN_CSB_BG4_Bio3_Tech1.bl.dedup.bam
+bedtools intersect -u -a CS1AN_CSB_BG4_Bio3_Tech1.bl.dedup.bam -b macs3/CS1AN_CSB_BG4_Bio3_Tech1_peaks.narrowPeak | samtools view -c
+
+samtools view -c -F 4 CS1AN_CSB_BG4_Bio3_Tech2.bl.dedup.bam
+bedtools intersect -u -a CS1AN_CSB_BG4_Bio3_Tech2.bl.dedup.bam -b macs3/CS1AN_CSB_BG4_Bio3_Tech2_peaks.narrowPeak | samtools view -c
+
+
+
+cd /rds/general/project/diantonio/live/Yaryna/ChIP_WT
+
+samtools view -c -F 4 CS1AN_WT_BG4_Bio1_Tech1.bl.dedup.bam
+bedtools intersect -u -a CS1AN_WT_BG4_Bio1_Tech1.bl.dedup.bam -b macs3/CS1AN_WT_BG4_Bio1_Tech1_peaks.narrowPeak | samtools view -c
+
+samtools view -c -F 4 CS1AN_WT_BG4_Bio1_Tech2.bl.dedup.bam
+bedtools intersect -u -a CS1AN_WT_BG4_Bio1_Tech2.bl.dedup.bam -b macs3/CS1AN_WT_BG4_Bio1_Tech2_peaks.narrowPeak | samtools view -c
