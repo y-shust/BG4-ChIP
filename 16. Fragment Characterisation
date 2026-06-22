@@ -2,18 +2,13 @@ wget https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/genes/hg38.ensGene.
 
 perl /rds/general/project/diantonio/live/Yaryna/configureHomer.pl -install hg38
 
-# if that doesn't work:
+export PATH=$PATH:/rds/general/project/diantonio/live/Yaryna/bin/
+echo 'export PATH=$PATH:/rds/general/project/diantonio/live/Yaryna/bin/' >> ~/.bashrc
+source ~/.bashrc
 
-vim annotate.pbs
 
-#!/bin/bash
-#PBS -l walltime=08:00:00
-#PBS -l select=1:ncpus=8:mem=16gb
+annotatePeaks.pl CS1AN_WT_BG4_Bio1_Multiinter_Min_Merged.bed hg38 > annotated_CS1AN_WT_BG4_Bio1_Multiinter_Min_Merged.bed 2> report_CS1AN_WT_BG4_Bio1_Multiinter_Min_Merged.bed
 
-# Load Conda
-module load miniforge/3
-eval "$(~/miniforge3/bin/conda shell.bash hook)"
+wc -l annotated_CS1AN_WT_BG4_Bio1_Multiinter_Min_Merged.bed
 
-export PATH=$PATH:/rds/general/project/diantonio/live/Yaryna//bin/
-
-annotatePeaks.pl macs3/CS1AN_CSB_BG4_Bio3_Multiinter_Min_Merged.bed hg38 > annotated_CS1AN_CSB_BG4_Bio3_Multiinter_Min_Merged.bed 2> report_shared_peak_file_CS1AN_CSB_BG4_Bio3_Multiinter_Min_Merged.bed
+wc -l report_CS1AN_WT_BG4_Bio1_Multiinter_Min_Merged.bed
