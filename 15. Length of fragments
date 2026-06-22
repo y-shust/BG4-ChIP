@@ -1,0 +1,16 @@
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate Env
+python3 << 'EOF'
+import numpy as np
+from scipy import stats
+
+csb = np.loadtxt('/rds/general/project/diantonio/live/Yaryna/csb_lengths.txt')
+wt = np.loadtxt('/rds/general/project/diantonio/live/Yaryna/wt_lengths.txt')
+
+print(f"CSB: n={len(csb)}, mean={csb.mean():.1f}, median={np.median(csb):.1f}")
+print(f"WT: n={len(wt)}, mean={wt.mean():.1f}, median={np.median(wt):.1f}")
+
+stat, pval = stats.mannwhitneyu(csb, wt, alternative='two-sided')
+print(f"\nMann-Whitney U test: U={stat:.0f}, p-value={pval:.2e}")
+EOF
