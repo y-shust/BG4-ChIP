@@ -1,1 +1,19 @@
+wget https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/genes/hg38.ensGene.gtf.gz gunzip hg38.ensGene.gtf.gz
 
+perl /rds/general/project/diantonio/live/Yaryna/configureHomer.pl -install hg38
+
+# if that doesn't work:
+
+vim annotate.pbs
+
+#!/bin/bash
+#PBS -l walltime=08:00:00
+#PBS -l select=1:ncpus=8:mem=16gb
+
+# Load Conda
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+
+export PATH=$PATH:/rds/general/project/diantonio/live/Yaryna//bin/
+
+annotatePeaks.pl macs3/CS1AN_CSB_BG4_Bio3_Multiinter_Min_Merged.bed hg38 > annotated_CS1AN_CSB_BG4_Bio3_Multiinter_Min_Merged.bed 2> report_shared_peak_file_CS1AN_CSB_BG4_Bio3_Multiinter_Min_Merged.bed
