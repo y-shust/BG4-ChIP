@@ -1,0 +1,98 @@
+cd /rds/general/project/diantonio/live/Yaryna/ChIP_WT/macs3
+
+python3 << 'EOF'
+import csv
+from collections import Counter
+
+counts = Counter()
+
+with open('annotated_CS1AN_WT_BG4_Bio1_Multiinter_Min_Merged.bed') as f:
+    reader = csv.reader(f, delimiter='\t')
+    next(reader)
+    for row in reader:
+        ann = row[7].split(' (')[0]
+        counts[ann] += 1
+
+for cat, n in counts.most_common():
+    print(f"{cat}: {n}")
+EOF
+
+
+
+
+
+
+
+cd /rds/general/project/diantonio/live/Yaryna/ChIP/macs3
+
+python3 << 'EOF'
+import csv
+from collections import Counter
+
+counts = Counter()
+main_cats = ['promoter-TSS', 'intron', 'Intergenic', 'CpG', 'TTS', 'exon', "3' UTR", 'non-coding', "5' UTR"]
+
+with open('annotated_CS1AN_CSB_BG4_Bio3_Multiinter_Min_Merged.bed') as f:
+    reader = csv.reader(f, delimiter='\t')
+    next(reader)
+    for row in reader:
+        ann = row[8].split(' (')[0]
+        if ann in main_cats:
+            counts[ann] += 1
+        else:
+            counts['Other (repeats/low complexity)'] += 1
+
+for cat, n in counts.most_common():
+    print(f"{cat}: {n}")
+EOF
+
+
+
+
+#these codes give the output of the number of peaks of each type of G4, now to make a graph:
+
+
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate Env
+
+conda install -n Env -c conda-forge matplotlib
+
+python3 -c "import matplotlib"
+
+
+# run the job with the output numbers received from the code:
+
+vim plot.py  
+import matplotlib.pyplot as plt
+import numpy as np
+
+categories = ['promoter-TSS', 'intron', 'Intergenic', 'CpG', 'Other', 
+              'exon', 'TTS', "3' UTR", 'non-coding', "5' UTR"]
+csb = [5826, 3601, 2085, 1024, 862, 560, 402, 219, 211, 178]
+wt = [2469, 1884, 1037, 320, 396, 137, 176, 100, 94, 48]
+
+x = np.arange(len(categories))
+width = 0.35
+
+fig, ax = plt.subplots(figsize=(11, 6))
+bars1 = ax.bar(x - width/2, csb, width, label='CSB+ (n=14,968)', color='#D85A30')
+bars2 = ax.bar(x + width/2, wt, width, label='CSB- / WT (n=6,661)', color='#378ADD')
+
+ax.set_ylabel('Number of peaks', fontsize=12)
+ax.set_title('BG4 peak distribution by genomic feature: CSB+ vs CSB-', fontsize=13)
+ax.set_xticks(x)
+ax.set_xticklabels(categories, rotation=45, ha='right')
+ax.legend(fontsize=10)
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
+
+plt.tight_layout()
+plt.savefig('CSB_vs_WT_genomic_distribution.png', dpi=300)
+print("Saved CSB_vs_WT_genomic_distribution.png")
+
+#save and run
+python3 plot.py
+
+
+
