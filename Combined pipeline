@@ -1,0 +1,224 @@
+#!/bin/bash
+#PBS -lwalltime=23:00:00
+#PBS -lselect=1:ncpus=16:mem=64gb
+
+# ============================================================
+# Combined pipeline: alignment -> FRiP (steps 2-13)
+# Processes 4 new biological replicates:
+#   CSB Bio1, CSB Bio2, WT Bio1, WT Bio2
+# Each replicate = Tech1, Tech2, Input (3 samples)
+# ============================================================
+
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+
+THREADS=16
+GENOME=/rds/general/project/diantonio/live/Yaryna/genome/hg38
+BLACKLIST=/rds/general/project/diantonio/live/tools/blacklisted_regions/hg38-blacklist.v2.bed
+
+CSB_DIR=/rds/general/project/diantonio/live/Yaryna/ChIP
+WT_DIR=/rds/general/project/diantonio/live/Yaryna/ChIP_WT
+CSB_TMP=${CSB_DIR}/tmp
+WT_TMP=${WT_DIR}/tmp
+
+mkdir -p "$CSB_TMP" "$WT_TMP"
+
+# ------------------------------------------------------------
+# Function: process_replicate
+# Args: $1 = condition prefix (CS1AN_CSB or CS1AN_WT)
+#       $2 = base directory (e.g. $CSB_DIR/Bio1)
+#       $3 = bio label (e.g. Bio1)
+#       $4 = tmp directory to use for Picard
+# ------------------------------------------------------------
+process_replicate () {
+    local PREFIX=$1
+    local BIODIR=$2
+    local BIO=$3
+    local TMPDIR=$4
+
+    echo "=============================================="
+    echo "Processing ${PREFIX}_${BIO}"
+    echo "=============================================="
+
+    conda activate Env
+
+    # --- Step 1: FastQC ---
+    for file in "${BIODIR}"/*.fq.gz
+    do
+        fastqc "$file" -o "$BIODIR"
+    done
+
+    # --- Step 2: Bowtie2 alignment ---
+    for SAMPLE_R1 in "${BIODIR}"/*_R1.fq.gz
+    do
+        SAMPLE=$(basename "$SAMPLE_R1" _R1.fq.gz)
+        R1="${BIODIR}/${SAMPLE}_R1.fq.gz"
+        R2="${BIODIR}/${SAMPLE}_R2.fq.gz"
+
+        bowtie2 \
+            -p $THREADS \
+            -x "$GENOME" \
+            -1 "$R1" \
+            -2 "$R2" \
+            -S "${BIODIR}/${SAMPLE}.sam" \
+            2> "${BIODIR}/${SAMPLE}.bowtie2.txt"
+    done
+
+    # --- Step 3: Sam to bam ---
+    for SAM_FILE in "${BIODIR}"/*.sam
+    do
+        SAMPLE=$(basename "$SAM_FILE" .sam)
+        samtools view -F 2308 -b -q 10 -@ $THREADS "$SAM_FILE" -o "${BIODIR}/${SAMPLE}.bam"
+    done
+
+    # --- Step 4: Sorting ---
+    for BAM_FILE in "${BIODIR}"/*.bam
+    do
+        SAMPLE=$(basename "$BAM_FILE" .bam)
+        samtools sort -@ $THREADS -o "${BIODIR}/${SAMPLE}.sorted.bam" -O bam -T "${BIODIR}/temp_${SAMPLE}" "$BAM_FILE"
+    done
+
+    # --- Step 5: Deduplication ---
+    for SORTED_FILE in "${BIODIR}"/*.sorted.bam
+    do
+        SAMPLE=$(basename "$SORTED_FILE" .sorted.bam)
+        samtools addreplacerg -r "ID:$SAMPLE" -r "SM:$SAMPLE" -r "PL:ILLUMINA" \
+            -o "${BIODIR}/${SAMPLE}.rg.bam" "$SORTED_FILE"
+
+        picard MarkDuplicates REMOVE_DUPLICATES=TRUE \
+            TMP_DIR="$TMPDIR" \
+            I="${BIODIR}/${SAMPLE}.rg.bam" \
+            O="${BIODIR}/${SAMPLE}.dedup.bam" \
+            M="${BIODIR}/${SAMPLE}.dedup.metrics.txt"
+
+        samtools index "${BIODIR}/${SAMPLE}.dedup.bam"
+    done
+
+    # --- Step 6: Blacklisting ---
+    for DEDUP_FILE in "${BIODIR}"/*.dedup.bam
+    do
+        SAMPLE=$(basename "$DEDUP_FILE" .dedup.bam)
+        bedtools intersect -v -a "$DEDUP_FILE" -b "$BLACKLIST" > "${BIODIR}/${SAMPLE}.bl.dedup.bam"
+    done
+
+    # --- Step 7: Indexing ---
+    for BL_FILE in "${BIODIR}"/*.bl.dedup.bam
+    do
+        samtools index "$BL_FILE"
+    done
+
+    conda deactivate
+
+    # --- Step 8: Bigwig generation ---
+    conda activate deeptools_env
+    for BL_FILE in "${BIODIR}"/*.bl.dedup.bam
+    do
+        SAMPLE=$(basename "$BL_FILE" .bl.dedup.bam)
+        bamCoverage -p $THREADS --normalizeUsing RPGC --effectiveGenomeSize 2700000000 -bs 5 -e \
+            --minMappingQuality 20 -b "$BL_FILE" -o "${BIODIR}/${SAMPLE}.hg38.uniq.bw"
+    done
+
+    # --- Step 9: Correlation analysis ---
+    BG4_TECH1=$(ls "${BIODIR}"/*_BG4_*_Tech1.bl.dedup.bam)
+    BG4_TECH2=$(ls "${BIODIR}"/*_BG4_*_Tech2.bl.dedup.bam)
+    INPUT_BAM=$(ls "${BIODIR}"/*_Input_*.bl.dedup.bam)
+
+    multiBamSummary bins \
+        --bamfiles "$BG4_TECH1" "$BG4_TECH2" "$INPUT_BAM" \
+        --binSize 5000 \
+        --minMappingQuality 20 \
+        --numberOfProcessors $THREADS \
+        -o "${BIODIR}/${PREFIX}_${BIO}_CorrelationMatrix.npz"
+
+    plotCorrelation \
+        -in "${BIODIR}/${PREFIX}_${BIO}_CorrelationMatrix.npz" \
+        --corMethod pearson \
+        --whatToPlot heatmap \
+        --colorMap RdYlBu \
+        --plotNumbers \
+        --removeOutliers \
+        -o "${BIODIR}/${PREFIX}_${BIO}_CorrelationMatrix.png"
+    conda deactivate
+
+    # --- Step 10: Peak calling with macs3 ---
+    conda activate macs3_env
+    TECH1_NAME=$(basename "$BG4_TECH1" .bl.dedup.bam)
+    TECH2_NAME=$(basename "$BG4_TECH2" .bl.dedup.bam)
+
+    macs3 callpeak \
+        -t "$BG4_TECH1" \
+        -c "$INPUT_BAM" \
+        -f BAMPE \
+        -p 0.0001 \
+        --keep-dup all \
+        -n "$TECH1_NAME" \
+        --outdir "$BIODIR"
+
+    macs3 callpeak \
+        -t "$BG4_TECH2" \
+        -c "$INPUT_BAM" \
+        -f BAMPE \
+        -p 0.0001 \
+        --keep-dup all \
+        -n "$TECH2_NAME" \
+        --outdir "$BIODIR"
+    conda deactivate
+
+    # --- Step 11: Peak overlap between technical replicates ---
+    conda activate Env
+    TECH1_PEAKS="${BIODIR}/${TECH1_NAME}_peaks.narrowPeak"
+    TECH2_PEAKS="${BIODIR}/${TECH2_NAME}_peaks.narrowPeak"
+    CONSENSUS_PREFIX="${BIODIR}/${PREFIX}_${BIO}"
+
+    bedtools multiinter \
+        -i "$TECH1_PEAKS" "$TECH2_PEAKS" \
+        | awk '$4 >= 2' OFS="\t" > "${CONSENSUS_PREFIX}_Multiinter.bed"
+
+    awk 'BEGIN {OFS="\t"} {print $1, $2, $3}' \
+        "${CONSENSUS_PREFIX}_Multiinter.bed" \
+        > "${CONSENSUS_PREFIX}_Multiinter_Min.bed"
+
+    bedtools merge \
+        -i "${CONSENSUS_PREFIX}_Multiinter_Min.bed" \
+        > "${CONSENSUS_PREFIX}_Multiinter_Min_Merged.bed"
+
+    awk '{if ($3-$2 > 10) print}' \
+        "${CONSENSUS_PREFIX}_Multiinter_Min_Merged.bed" \
+        > "${CONSENSUS_PREFIX}_Multiinter_Min_Merged_10bp.bed"
+
+    # --- Step 12: OQS overlap (Laura's lifted hg19->hg38 OQ reference dataset) ---
+    OQS_REF=/rds/general/project/diantonio/live/Yaryna/OQ_hits.lifted_hg19_to_hg38.bed
+    bedtools intersect -u \
+        -a "${CONSENSUS_PREFIX}_Multiinter_Min_Merged.bed" \
+        -b "$OQS_REF" \
+        > "${CONSENSUS_PREFIX}_xOQ_Lauras.bed"
+
+    # --- Step 13: FRiP (Fraction of Reads in Peaks) ---
+    FRIP_LOG="${BIODIR}/${PREFIX}_${BIO}_FRiP.txt"
+    echo "FRiP results for ${PREFIX}_${BIO}" > "$FRIP_LOG"
+
+    for TECH_BAM in "$BG4_TECH1" "$BG4_TECH2"
+    do
+        TECH_NAME=$(basename "$TECH_BAM" .bl.dedup.bam)
+        PEAK_FILE="${BIODIR}/${TECH_NAME}_peaks.narrowPeak"
+
+        TOTAL=$(samtools view -c -F 4 "$TECH_BAM")
+        IN_PEAKS=$(bedtools intersect -u -a "$TECH_BAM" -b "$PEAK_FILE" | samtools view -c)
+
+        echo "${TECH_NAME}: ${IN_PEAKS} / ${TOTAL}" >> "$FRIP_LOG"
+    done
+    conda deactivate
+
+    echo "Finished ${PREFIX}_${BIO}"
+}
+
+# ============================================================
+# Run all 4 replicate sets
+# ============================================================
+
+process_replicate "CS1AN_CSB" "${CSB_DIR}/Bio1" "Bio1" "$CSB_TMP"
+process_replicate "CS1AN_CSB" "${CSB_DIR}/Bio2" "Bio2" "$CSB_TMP"
+process_replicate "CS1AN_WT"  "${WT_DIR}/Bio1"  "Bio1" "$WT_TMP"
+process_replicate "CS1AN_WT"  "${WT_DIR}/Bio2"  "Bio2" "$WT_TMP"
+
+echo "All replicates processed."
