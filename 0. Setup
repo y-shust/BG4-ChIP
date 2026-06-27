@@ -41,6 +41,10 @@ conda install -n Env fastqc
 conda install -n Env -c bioconda fastqc
 # somewhere here you should specify the python version u want to use
 
+
+# to find file locations:
+find /rds/general/project/diantonio/live/Yaryna/ChIP -iname "*Bio3*bl.dedup.bam"
+
 FastQC
 Bowtie2 alignment to hg38
 SAM → BAM conversion
