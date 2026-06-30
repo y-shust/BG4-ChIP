@@ -1,1 +1,67 @@
 
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+
+conda create -n sicchip_env -c conda-forge -c bioconda r-base r-rtracklayer r-rcpp r-bh boost -y
+
+conda activate sicchip_env
+
+cd /rds/general/project/diantonio/live/Yaryna
+git clone https://github.com/marziacremona/SIC-ChIP.git
+
+R -e 'installed.packages()[,"Package"]' | grep -E "rtracklayer|Rcpp|^BH$|parallel"
+
+conda install -n Env -c conda-forge -c bioconda r-rtracklayer r-rcpp r-bh boost -y
+
+conda search -c bioconda r-rtracklayer
+
+conda install -n Env -c conda-forge libboost-headers r-rcpp r-bh -y
+
+conda create -n sicchip_env -c conda-forge -c bioconda r-base=4.5 bioconductor-rtracklayer=1.70.1 r-rcpp r-bh libboost-headers -y
+
+conda activate sicchip_env
+cd /rds/general/project/diantonio/live/Yaryna
+git clone https://github.com/marziacremona/SIC-ChIP.git
+cd SIC-ChIP
+ls
+
+# run the test data to see if it works:
+
+ls test_data/
+
+chmod +x SIC-ChIP.r
+Rscript SIC-ChIP.r --bw=test_data/coverage_test.bw --bed=test_data/peaks_test.bed --out=test_results
+
+# confirm the files exist:
+
+find . -newer SIC-ChIP.r -type f
+
+
+
+# finally, run the code on your samples. started with CSB Bio1 Tech1 (Note I've lowered --N (spline knot spacing) 
+# from the default 20 to 10, and --toll (minimum distance between local maxima) from 50 to 20 — since your BG4 peaks 
+# are much narrower (median ~150-300bp) than their GATA-1 peaks, the defaults would likely be too coarse to detect 
+# meaningful local maxima within your peak widths, exactly as the README warned.)
+
+cd /rds/general/project/diantonio/live/Yaryna/SIC-ChIP
+
+vim run_sicchip_CSB_Bio1_Tech1.pbs
+
+#!/bin/bash
+#PBS -lwalltime=04:00:00
+#PBS -lselect=1:ncpus=4:mem=32gb
+
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate sicchip_env
+
+cd /rds/general/project/diantonio/live/Yaryna/SIC-ChIP
+
+Rscript SIC-ChIP.r \
+    --bw=/rds/general/project/diantonio/live/Yaryna/ChIP/Bio1/CS1AN_CSB_BG4_Bio1_Tech1.hg38.uniq.bw \
+    --bed=/rds/general/project/diantonio/live/Yaryna/ChIP/Bio1/CS1AN_CSB_BG4_Bio1_Tech1_peaks.narrowPeak \
+    --out=CSB_Bio1_Tech1_results \
+    --N=10 \
+    --toll=20
+
+qsub run_sicchip_CSB_Bio1_Tech1.pbs
