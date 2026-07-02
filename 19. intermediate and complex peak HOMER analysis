@@ -3,6 +3,7 @@
 
 
 
+
 cat > /rds/general/project/diantonio/live/Yaryna/SIC-ChIP/run_homer_cluster_analysis.pbs << 'EOF'
 #!/bin/bash
 #PBS -lwalltime=02:00:00
@@ -11,18 +12,18 @@ cat > /rds/general/project/diantonio/live/Yaryna/SIC-ChIP/run_homer_cluster_anal
 module load miniforge/3
 eval "$(~/miniforge3/bin/conda shell.bash hook)"
 conda activate sicchip_env
+module load BEDTools/2.31.0-GCC-12.3.0
 
 export LC_ALL=C
 export LC_CTYPE=C
+export PATH=$PATH:/rds/general/project/diantonio/live/Yaryna/homer/bin/
 
 BASE=/rds/general/project/diantonio/live/Yaryna
 SICD=${BASE}/SIC-ChIP
 OUT=${SICD}/summary_results
-HOMER=${BASE}/homer/bin/annotatePeaks.pl
 
 cd ${SICD}
 
-# ── Step 1: Extract BED files per condition per cluster ──────────────────────
 cat > /tmp/extract_beds.R << 'REOF'
 OUT <- "/rds/general/project/diantonio/live/Yaryna/SIC-ChIP/summary_results"
 
@@ -41,7 +42,6 @@ REOF
 
 Rscript /tmp/extract_beds.R
 
-# ── Step 2: Sort and merge overlapping peaks per file ────────────────────────
 echo "Sorting and merging peaks..."
 for BED in ${OUT}/CSB_2_Intermediate_peaks.bed \
             ${OUT}/CSB_3_Complex_peaks.bed \
@@ -53,7 +53,6 @@ for BED in ${OUT}/CSB_2_Intermediate_peaks.bed \
     echo "  ${BASE_NAME}_merged.bed: ${COUNT} peaks after merging"
 done
 
-# ── Step 3: HOMER annotation ─────────────────────────────────────────────────
 echo "Running HOMER annotation..."
 for BED in ${OUT}/CSB_2_Intermediate_peaks_merged.bed \
             ${OUT}/CSB_3_Complex_peaks_merged.bed \
@@ -61,8 +60,7 @@ for BED in ${OUT}/CSB_2_Intermediate_peaks_merged.bed \
             ${OUT}/WT_3_Complex_peaks_merged.bed; do
     LABEL=$(basename ${BED} _peaks_merged.bed)
     echo "  Annotating ${LABEL}..."
-    perl ${HOMER} ${BED} hg38 \
-        -gtf ${BASE}/homer/data/genomes/hg38/hg38.gtf \
+    annotatePeaks.pl ${BED} hg38 \
         > ${OUT}/${LABEL}_homer_annotated.txt
     echo "  Done: ${OUT}/${LABEL}_homer_annotated.txt"
 done
