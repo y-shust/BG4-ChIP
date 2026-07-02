@@ -1,0 +1,73 @@
+# This Job: extracts BED files from the CSVs, merges overlapping peaks across replicates with bedtools, 
+# then runs HOMER annotation on each.
+
+
+
+cat > /rds/general/project/diantonio/live/Yaryna/SIC-ChIP/run_homer_cluster_analysis.pbs << 'EOF'
+#!/bin/bash
+#PBS -lwalltime=02:00:00
+#PBS -lselect=1:ncpus=4:mem=16gb
+
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate sicchip_env
+
+export LC_ALL=C
+export LC_CTYPE=C
+
+BASE=/rds/general/project/diantonio/live/Yaryna
+SICD=${BASE}/SIC-ChIP
+OUT=${SICD}/summary_results
+HOMER=${BASE}/homer/bin/annotatePeaks.pl
+
+cd ${SICD}
+
+# ── Step 1: Extract BED files per condition per cluster ──────────────────────
+cat > /tmp/extract_beds.R << 'REOF'
+OUT <- "/rds/general/project/diantonio/live/Yaryna/SIC-ChIP/summary_results"
+
+for (cond in c("CSB", "WT")) {
+  df <- read.csv(file.path(OUT, paste0(cond, "_all_replicates_cluster_assignments.csv")))
+  for (cl in c("2_Intermediate", "3_Complex")) {
+    sub <- df[df$cluster == cl, c("chr","start","end")]
+    sub <- sub[!is.na(sub$chr), ]
+    outfile <- file.path(OUT, paste0(cond, "_", cl, "_peaks.bed"))
+    write.table(sub, outfile, sep="\t", quote=FALSE,
+                row.names=FALSE, col.names=FALSE)
+    cat("Written:", outfile, "(", nrow(sub), "peaks )\n")
+  }
+}
+REOF
+
+Rscript /tmp/extract_beds.R
+
+# ── Step 2: Sort and merge overlapping peaks per file ────────────────────────
+echo "Sorting and merging peaks..."
+for BED in ${OUT}/CSB_2_Intermediate_peaks.bed \
+            ${OUT}/CSB_3_Complex_peaks.bed \
+            ${OUT}/WT_2_Intermediate_peaks.bed \
+            ${OUT}/WT_3_Complex_peaks.bed; do
+    BASE_NAME="${BED%.bed}"
+    sort -k1,1 -k2,2n ${BED} | bedtools merge > ${BASE_NAME}_merged.bed
+    COUNT=$(wc -l < ${BASE_NAME}_merged.bed)
+    echo "  ${BASE_NAME}_merged.bed: ${COUNT} peaks after merging"
+done
+
+# ── Step 3: HOMER annotation ─────────────────────────────────────────────────
+echo "Running HOMER annotation..."
+for BED in ${OUT}/CSB_2_Intermediate_peaks_merged.bed \
+            ${OUT}/CSB_3_Complex_peaks_merged.bed \
+            ${OUT}/WT_2_Intermediate_peaks_merged.bed \
+            ${OUT}/WT_3_Complex_peaks_merged.bed; do
+    LABEL=$(basename ${BED} _peaks_merged.bed)
+    echo "  Annotating ${LABEL}..."
+    perl ${HOMER} ${BED} hg38 \
+        -gtf ${BASE}/homer/data/genomes/hg38/hg38.gtf \
+        > ${OUT}/${LABEL}_homer_annotated.txt
+    echo "  Done: ${OUT}/${LABEL}_homer_annotated.txt"
+done
+
+echo "All done."
+EOF
+
+qsub run_homer_cluster_analysis.pbs
