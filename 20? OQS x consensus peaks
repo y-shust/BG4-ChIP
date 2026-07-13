@@ -1,0 +1,14 @@
+cd /rds/general/project/diantonio/live/Yaryna
+
+bedtools intersect -u \
+    -a ChIP/CSB_AllBio_Consensus.bed \
+    -b OQ_hits.lifted_hg19_to_hg38.bed \
+    > ChIP/CSB_AllBio_Consensus_xOQ.bed
+
+bedtools intersect -u \
+    -a ChIP_WT/WT_AllBio_Consensus.bed \
+    -b OQ_hits.lifted_hg19_to_hg38.bed \
+    > ChIP_WT/WT_AllBio_Consensus_xOQ.bed
+
+wc -l ChIP/CSB_AllBio_Consensus_xOQ.bed
+wc -l ChIP_WT/WT_AllBio_Consensus_xOQ.bed
