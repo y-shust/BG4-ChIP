@@ -1,0 +1,101 @@
+cat > /rds/general/project/diantonio/live/Yaryna/SIC-ChIP/plot_combined_elbow.R << 'REOF'
+library(ggplot2)
+
+BASE_DIR <- "/rds/general/project/diantonio/live/Yaryna/SIC-ChIP"
+OUT_DIR  <- file.path(BASE_DIR, "summary_results")
+
+all_samples <- list(
+  list(dir="SIC-ChIP_CSB_Bio1_Tech1_results", prefix="CSB_Bio1_Tech1_results",
+       label="Bio1 Tech1", condition="CSB+"),
+  list(dir="SIC-ChIP_CSB_Bio1_Tech2_results", prefix="CSB_Bio1_Tech2_results",
+       label="Bio1 Tech2", condition="CSB+"),
+  list(dir="SIC-ChIP_CSB_Bio2_Tech1_results", prefix="CSB_Bio2_Tech1_results",
+       label="Bio2 Tech1", condition="CSB+"),
+  list(dir="SIC-ChIP_CSB_Bio2_Tech2_results", prefix="CSB_Bio2_Tech2_results",
+       label="Bio2 Tech2", condition="CSB+"),
+  list(dir="SIC-ChIP_CSB_Bio3_Tech1_results", prefix="CSB_Bio3_Tech1_results",
+       label="Bio3 Tech1", condition="CSB+"),
+  list(dir="SIC-ChIP_CSB_Bio3_Tech2_results", prefix="CSB_Bio3_Tech2_results",
+       label="Bio3 Tech2", condition="CSB+"),
+  list(dir="SIC-ChIP_WT_Bio1_Tech1_results",  prefix="WT_Bio1_Tech1_results",
+       label="Bio1 Tech1", condition="WT"),
+  list(dir="SIC-ChIP_WT_Bio1_Tech2_results",  prefix="WT_Bio1_Tech2_results",
+       label="Bio1 Tech2", condition="WT"),
+  list(dir="SIC-ChIP_WT_Bio2_Tech1_results",  prefix="WT_Bio2_Tech1_results",
+       label="Bio2 Tech1", condition="WT"),
+  list(dir="SIC-ChIP_WT_Bio2_Tech2_results",  prefix="WT_Bio2_Tech2_results",
+       label="Bio2 Tech2", condition="WT"),
+  list(dir="SIC-ChIP_WT_Bio3_Tech1_results",  prefix="WT_Bio3_Tech1_results",
+       label="Bio3 Tech1", condition="WT"),
+  list(dir="SIC-ChIP_WT_Bio3_Tech2_results",  prefix="WT_Bio3_Tech2_results",
+       label="Bio3 Tech2", condition="WT")
+)
+
+all_data <- list()
+
+for (s in all_samples) {
+  kmeans_file <- file.path(BASE_DIR, s$dir, paste0(s$prefix, "_kmeans.RData"))
+  env_k <- new.env()
+  load(kmeans_file, envir=env_k)
+  K_list     <- get("K", envir=env_k)
+  within_vec <- sapply(K_list, function(x) x$tot.withinss)
+  k_vals     <- seq_along(within_vec)
+
+  all_data[[length(all_data)+1]] <- data.frame(
+    k         = k_vals,
+    wss       = within_vec,
+    label     = s$label,
+    condition = s$condition
+  )
+}
+
+plot_df <- do.call(rbind, all_data)
+plot_df$condition <- factor(plot_df$condition, levels=c("CSB+","WT"))
+plot_df$label     <- factor(plot_df$label,
+                            levels=c("Bio1 Tech1","Bio1 Tech2",
+                                     "Bio2 Tech1","Bio2 Tech2",
+                                     "Bio3 Tech1","Bio3 Tech2"))
+
+# Normalise WSS to 0-1 per sample so all replicates are on the same scale
+plot_df$wss_norm <- ave(plot_df$wss, paste(plot_df$condition, plot_df$label),
+                        FUN=function(x) (x - min(x)) / (max(x) - min(x)))
+
+# Option 1: one panel per condition, lines per replicate
+p1 <- ggplot(plot_df, aes(x=k, y=wss_norm, colour=label, group=label)) +
+  geom_line(linewidth=0.8) +
+  geom_point(size=1.5) +
+  geom_vline(xintercept=3, linetype="dashed", colour="red", linewidth=0.8) +
+  facet_wrap(~condition) +
+  scale_colour_manual(values=c(
+    "Bio1 Tech1"="#1b7837","Bio1 Tech2"="#5aae61",
+    "Bio2 Tech1"="#2166ac","Bio2 Tech2"="#74add1",
+    "Bio3 Tech1"="#d6604d","Bio3 Tech2"="#f4a582"),
+    name="Replicate") +
+  scale_x_continuous(breaks=1:10) +
+  labs(title="SIC-ChIP elbow plots — all technical replicates",
+       subtitle="Dashed line = k=3 (selected); WSS normalised per replicate",
+       x="k", y="Normalised within-cluster SS") +
+  theme_bw(base_size=11) +
+  theme(panel.grid.minor=element_blank())
+
+ggsave(file.path(OUT_DIR, "combined_elbow_plots.pdf"), p1, width=10, height=5)
+cat("Saved combined_elbow_plots.pdf\n")
+REOF
+
+cat > /rds/general/project/diantonio/live/Yaryna/SIC-ChIP/run_plot_elbow.pbs << 'EOF'
+#!/bin/bash
+#PBS -lwalltime=00:10:00
+#PBS -lselect=1:ncpus=1:mem=8gb
+
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate sicchip_env
+
+export LC_ALL=C
+export LC_CTYPE=C
+
+cd /rds/general/project/diantonio/live/Yaryna/SIC-ChIP
+Rscript plot_combined_elbow.R
+EOF
+
+qsub run_plot_elbow.pbs
