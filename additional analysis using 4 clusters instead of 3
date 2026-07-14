@@ -280,6 +280,10 @@ EOF
 qsub run_summarize_k4.pbs
 
 
+
+
+
+
 # CORRECTION:
 
 sed -i 's/aes(x=cluster, y=mean_pct, fill=condition)/aes(x=cluster, y=pct, fill=condition)/' \
@@ -289,6 +293,14 @@ sed -i 's/geom_errorbar(aes(ymin=mean_pct-sd, ymax=mean_pct+sd)/geom_errorbar(ae
     /rds/general/project/diantonio/live/Yaryna/SIC-ChIP/summarize_sicchip_k4.R
 
 qsub run_summarize_k4.pbs
+
+
+
+
+
+
+
+
 
 
 
