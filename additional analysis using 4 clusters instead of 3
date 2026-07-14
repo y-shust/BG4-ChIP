@@ -1,1 +1,280 @@
+cat > /rds/general/project/diantonio/live/Yaryna/SIC-ChIP/summarize_sicchip_k4.R << 'REOF'
+library(ggplot2)
 
+K_USE <- 4
+
+BASE_DIR <- "/rds/general/project/diantonio/live/Yaryna/SIC-ChIP"
+OUT_DIR  <- file.path(BASE_DIR, "summary_results_k4")
+dir.create(OUT_DIR, showWarnings = FALSE)
+
+CLUSTER_LEVELS <- c("1_Simple","2_Intermediate_Low","3_Intermediate_High","4_Complex")
+CLUSTER_LABELS <- c("Simple","Intermediate-Low","Intermediate-High","Complex")
+CLUSTER_COLS   <- c("1_Simple"="#74C476",
+                    "2_Intermediate_Low"="#4393C3",
+                    "3_Intermediate_High"="#F4A460",
+                    "4_Complex"="#D6604D")
+
+all_peaks <- list()
+
+for (cond in c("CSB","WT")) {
+
+  if (cond == "CSB") {
+    samples <- list(
+      list(dir="SIC-ChIP_CSB_Bio1_Tech1_results", prefix="CSB_Bio1_Tech1_results", label="CSB_Bio1_Tech1"),
+      list(dir="SIC-ChIP_CSB_Bio1_Tech2_results", prefix="CSB_Bio1_Tech2_results", label="CSB_Bio1_Tech2"),
+      list(dir="SIC-ChIP_CSB_Bio2_Tech1_results", prefix="CSB_Bio2_Tech1_results", label="CSB_Bio2_Tech1"),
+      list(dir="SIC-ChIP_CSB_Bio2_Tech2_results", prefix="CSB_Bio2_Tech2_results", label="CSB_Bio2_Tech2"),
+      list(dir="SIC-ChIP_CSB_Bio3_Tech1_results", prefix="CSB_Bio3_Tech1_results", label="CSB_Bio3_Tech1"),
+      list(dir="SIC-ChIP_CSB_Bio3_Tech2_results", prefix="CSB_Bio3_Tech2_results", label="CSB_Bio3_Tech2")
+    )
+  } else {
+    samples <- list(
+      list(dir="SIC-ChIP_WT_Bio1_Tech1_results", prefix="WT_Bio1_Tech1_results", label="WT_Bio1_Tech1"),
+      list(dir="SIC-ChIP_WT_Bio1_Tech2_results", prefix="WT_Bio1_Tech2_results", label="WT_Bio1_Tech2"),
+      list(dir="SIC-ChIP_WT_Bio2_Tech1_results", prefix="WT_Bio2_Tech1_results", label="WT_Bio2_Tech1"),
+      list(dir="SIC-ChIP_WT_Bio2_Tech2_results", prefix="WT_Bio2_Tech2_results", label="WT_Bio2_Tech2"),
+      list(dir="SIC-ChIP_WT_Bio3_Tech1_results", prefix="WT_Bio3_Tech1_results", label="WT_Bio3_Tech1"),
+      list(dir="SIC-ChIP_WT_Bio3_Tech2_results", prefix="WT_Bio3_Tech2_results", label="WT_Bio3_Tech2")
+    )
+  }
+
+  cond_peaks <- list()
+
+  for (s in samples) {
+    kmeans_file <- file.path(BASE_DIR, s$dir, paste0(s$prefix, "_kmeans.RData"))
+    index_file  <- file.path(BASE_DIR, s$dir, paste0(s$prefix, "_peaks_index.RData"))
+    cat("Loading:", s$label, "\n")
+
+    env_k <- new.env(); load(kmeans_file, envir=env_k)
+    env_i <- new.env(); load(index_file,  envir=env_i)
+
+    K_list   <- get("K", envir=env_k)
+    df       <- get("peaks.df.index", envir=env_i)
+    clusters <- K_list[[K_USE]]$cluster
+    centers  <- K_list[[K_USE]]$centers
+
+    # Relabel by FWHM rank ascending
+    fwhm_means <- centers[, "width.height.2"]
+    rank_order <- order(fwhm_means)
+    label_map  <- setNames(CLUSTER_LEVELS, rank_order)
+    clusters_relabelled <- label_map[as.character(clusters)]
+
+    cat("  Relabelling (FWHM rank):\n")
+    for (i in seq_along(rank_order)) {
+      cat("    Original", rank_order[i],
+          "(FWHM=", round(fwhm_means[rank_order[i]], 1), ") ->",
+          CLUSTER_LEVELS[i], "\n")
+    }
+
+    df$cluster <- factor(clusters_relabelled, levels=CLUSTER_LEVELS)
+    df$sample  <- s$label
+    df$condition <- cond
+    df$bio     <- sub("_Tech.*", "", sub(paste0(cond,"_"), "", s$label))
+    df$tech    <- sub(".*_", "", s$label)
+
+    cat("  ->", nrow(df), "peaks |",
+        paste(table(df$cluster), collapse=" / "), "\n")
+
+    cond_peaks[[s$label]] <- df
+  }
+
+  combined_cond <- do.call(rbind, cond_peaks)
+  all_peaks[[cond]] <- combined_cond
+
+  # Proportions
+  prop_list <- lapply(samples, function(s) {
+    d   <- cond_peaks[[s$label]]
+    tbl <- table(d$cluster)
+    props <- round(100 * tbl / sum(tbl), 2)
+    data.frame(sample=s$label, cluster=names(props),
+               n_peaks=as.integer(tbl), pct=as.numeric(props))
+  })
+  prop_df <- do.call(rbind, prop_list)
+  rownames(prop_df) <- NULL
+  prop_df$cluster <- factor(prop_df$cluster, levels=CLUSTER_LEVELS)
+  print(prop_df)
+  write.csv(prop_df,
+            file.path(OUT_DIR, paste0(cond, "_k4_cluster_proportions.csv")),
+            row.names=FALSE)
+
+  # Shape means
+  shape_cols <- c("height","area","width.height.2","local.peaks","M.height")
+  means_list <- lapply(samples, function(s) {
+    d   <- cond_peaks[[s$label]]
+    agg <- aggregate(d[, shape_cols], by=list(cluster=d$cluster), FUN=mean)
+    agg$sample <- s$label
+    agg
+  })
+  means_df <- do.call(rbind, means_list)
+  colnames(means_df)[colnames(means_df)=="width.height.2"] <- "FWHM_bp"
+  colnames(means_df)[colnames(means_df)=="M.height"]       <- "complexity_Mh"
+  write.csv(means_df,
+            file.path(OUT_DIR, paste0(cond, "_k4_cluster_shape_means.csv")),
+            row.names=FALSE)
+
+  write.csv(combined_cond,
+            file.path(OUT_DIR, paste0(cond, "_k4_all_replicates_cluster_assignments.csv")),
+            row.names=FALSE)
+
+  # Plot 1: Stacked bar proportions
+  p1 <- ggplot(prop_df, aes(x=sample, y=pct, fill=cluster)) +
+    geom_bar(stat="identity", position="stack") +
+    scale_fill_manual(values=CLUSTER_COLS, labels=CLUSTER_LABELS, name="Cluster") +
+    labs(title=paste("SIC-ChIP k=4 Cluster Proportions —", cond, "Technical Replicates"),
+         x="Sample", y="% of peaks") +
+    theme_bw(base_size=12) +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
+  ggsave(file.path(OUT_DIR, paste0(cond, "_k4_cluster_proportions_barplot.pdf")),
+         p1, width=8, height=5)
+
+  # Plot 2: Shape boxplots — linear
+  shape_long_lin <- reshape(combined_cond[, c("cluster","width.height.2","local.peaks","M.height")],
+    varying=c("width.height.2","local.peaks","M.height"),
+    v.names="value", timevar="index",
+    times=c("FWHM (bp)","Local peaks","Complexity (M/h)"),
+    direction="long")
+  shape_long_lin$cluster <- factor(shape_long_lin$cluster, levels=CLUSTER_LEVELS)
+
+  p2 <- ggplot(shape_long_lin, aes(x=cluster, y=value, fill=cluster)) +
+    geom_boxplot(outlier.size=0.3, outlier.alpha=0.3) +
+    facet_wrap(~index, scales="free_y", ncol=3) +
+    scale_fill_manual(values=CLUSTER_COLS, labels=CLUSTER_LABELS, name="Cluster") +
+    scale_x_discrete(labels=CLUSTER_LABELS) +
+    labs(title=paste("Shape Indices by Cluster —", cond, "Replicates (k=4)"),
+         x="Cluster", y="Value") +
+    theme_bw(base_size=11) +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
+  ggsave(file.path(OUT_DIR, paste0(cond, "_k4_shape_boxplots_linear.pdf")),
+         p2, width=12, height=4)
+
+  # Plot 3: Height log
+  p3 <- ggplot(combined_cond, aes(x=cluster, y=height, fill=cluster)) +
+    geom_boxplot(outlier.size=0.3, outlier.alpha=0.3) +
+    scale_fill_manual(values=CLUSTER_COLS, labels=CLUSTER_LABELS, name="Cluster") +
+    scale_x_discrete(labels=CLUSTER_LABELS) +
+    scale_y_log10() + annotation_logticks(sides="l") +
+    labs(title=paste("Height by Cluster (log10) —", cond, "Replicates (k=4)"),
+         x="Cluster", y="Height (log10)") +
+    theme_bw(base_size=11) +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
+  ggsave(file.path(OUT_DIR, paste0(cond, "_k4_height_log_boxplot.pdf")),
+         p3, width=6, height=4)
+
+  # Plot 4: Area log
+  p4 <- ggplot(combined_cond, aes(x=cluster, y=area, fill=cluster)) +
+    geom_boxplot(outlier.size=0.3, outlier.alpha=0.3) +
+    scale_fill_manual(values=CLUSTER_COLS, labels=CLUSTER_LABELS, name="Cluster") +
+    scale_x_discrete(labels=CLUSTER_LABELS) +
+    scale_y_log10() + annotation_logticks(sides="l") +
+    labs(title=paste("Area by Cluster (log10) —", cond, "Replicates (k=4)"),
+         x="Cluster", y="Area (log10)") +
+    theme_bw(base_size=11) +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
+  ggsave(file.path(OUT_DIR, paste0(cond, "_k4_area_log_boxplot.pdf")),
+         p4, width=6, height=4)
+
+  # Elbow plots
+  pdf(file.path(OUT_DIR, paste0(cond, "_k4_elbow_plots.pdf")), width=8, height=5)
+  for (s in samples) {
+    kmeans_file <- file.path(BASE_DIR, s$dir, paste0(s$prefix, "_kmeans.RData"))
+    env_k <- new.env(); load(kmeans_file, envir=env_k)
+    K_list     <- get("K", envir=env_k)
+    within_vec <- sapply(K_list, function(x) x$tot.withinss)
+    k_vals     <- seq_along(within_vec)
+    plot(k_vals, within_vec, type="b", pch=19,
+         col=ifelse(k_vals==K_USE,"red","black"),
+         xlab="k", ylab="Total within-cluster SS",
+         main=paste("Elbow plot —", s$label), xaxt="n")
+    axis(1, at=k_vals)
+    abline(v=K_USE, col="red", lty=2)
+  }
+  dev.off()
+
+  cat("Done:", cond, "\n\n")
+}
+
+# CSB vs WT comparison
+combined_all <- rbind(all_peaks[["CSB"]], all_peaks[["WT"]])
+combined_all$condition <- factor(combined_all$condition, levels=c("WT","CSB"))
+combined_all$cluster   <- factor(combined_all$cluster, levels=CLUSTER_LEVELS)
+COND_COLS <- c("CSB"="#E31A1C","WT"="#1F78B4")
+
+# Grouped bar proportions
+prop_both <- do.call(rbind, lapply(c("CSB","WT"), function(cond) {
+  read.csv(file.path(OUT_DIR, paste0(cond, "_k4_cluster_proportions.csv")))
+}))
+prop_both$condition <- factor(ifelse(grepl("^CSB",prop_both$sample),"CSB","WT"),
+                              levels=c("WT","CSB"))
+prop_both$cluster <- factor(prop_both$cluster, levels=CLUSTER_LEVELS)
+prop_summary <- aggregate(pct ~ cluster + condition, data=prop_both, FUN=mean)
+prop_summary$sd <- aggregate(pct ~ cluster + condition, data=prop_both, FUN=sd)$pct
+
+p_grouped <- ggplot(prop_summary, aes(x=cluster, y=mean_pct, fill=condition)) +
+  geom_bar(stat="identity", position=position_dodge(0.8), width=0.7) +
+  geom_errorbar(aes(ymin=mean_pct-sd, ymax=mean_pct+sd),
+                position=position_dodge(0.8), width=0.25) +
+  scale_fill_manual(values=COND_COLS, name="Condition") +
+  scale_x_discrete(labels=CLUSTER_LABELS) +
+  labs(title="k=4 Cluster Proportions — CSB vs WT (mean ± SD)",
+       x="Cluster", y="% of peaks") +
+  theme_bw(base_size=12) +
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+ggsave(file.path(OUT_DIR, "CSB_vs_WT_k4_proportions_grouped.pdf"),
+       p_grouped, width=8, height=5)
+
+# FWHM boxplots CSB vs WT
+p_fwhm <- ggplot(combined_all, aes(x=condition, y=width.height.2, fill=condition)) +
+  geom_boxplot(outlier.size=0.3, outlier.alpha=0.2) +
+  facet_wrap(~cluster, scales="free_y",
+             labeller=labeller(cluster=setNames(CLUSTER_LABELS, CLUSTER_LEVELS))) +
+  scale_fill_manual(values=COND_COLS, name="Condition") +
+  labs(title="FWHM by Cluster — CSB vs WT (k=4)",
+       x="Condition", y="FWHM (bp)") +
+  theme_bw(base_size=11)
+ggsave(file.path(OUT_DIR, "CSB_vs_WT_k4_FWHM_boxplots.pdf"),
+       p_fwhm, width=12, height=4)
+
+# Mann-Whitney tests
+cat("\n=== Mann-Whitney U tests (CSB vs WT) per cluster (k=4) ===\n")
+shape_cols <- c("height","area","width.height.2","local.peaks","M.height")
+results <- list()
+for (cl in CLUSTER_LEVELS) {
+  for (sc in shape_cols) {
+    csb_vals <- combined_all[[sc]][combined_all$cluster==cl & combined_all$condition=="CSB"]
+    wt_vals  <- combined_all[[sc]][combined_all$cluster==cl & combined_all$condition=="WT"]
+    mw <- wilcox.test(csb_vals, wt_vals, alternative="two.sided")
+    results[[length(results)+1]] <- data.frame(
+      cluster=cl, index=sc, W=mw$statistic, p=mw$p.value,
+      sig=ifelse(mw$p.value<0.001,"***",
+                 ifelse(mw$p.value<0.01,"**",
+                        ifelse(mw$p.value<0.05,"*","ns"))))
+  }
+}
+stats_df <- do.call(rbind, results)
+rownames(stats_df) <- NULL
+print(stats_df)
+write.csv(stats_df,
+          file.path(OUT_DIR, "CSB_vs_WT_k4_mannwhitney_results.csv"),
+          row.names=FALSE)
+
+cat("\n=== summarize_sicchip_k4.R complete ===\n")
+cat("Output in:", OUT_DIR, "\n")
+REOF
+
+cat > /rds/general/project/diantonio/live/Yaryna/SIC-ChIP/run_summarize_k4.pbs << 'EOF'
+#!/bin/bash
+#PBS -lwalltime=00:30:00
+#PBS -lselect=1:ncpus=1:mem=16gb
+
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate sicchip_env
+
+export LC_ALL=C
+export LC_CTYPE=C
+
+cd /rds/general/project/diantonio/live/Yaryna/SIC-ChIP
+Rscript summarize_sicchip_k4.R
+EOF
+
+qsub run_summarize_k4.pbs
