@@ -1,0 +1,65 @@
+cat > /rds/general/project/diantonio/live/Yaryna/SIC-ChIP/plot_shape_boxplots_log.R << 'REOF'
+library(ggplot2)
+
+OUT_DIR <- "/rds/general/project/diantonio/live/Yaryna/SIC-ChIP/summary_results"
+CLUSTER_COLS <- c("1_Simple"="#74C476","2_Intermediate"="#4393C3","3_Complex"="#D6604D")
+
+for (cond in c("CSB", "WT")) {
+  df <- read.csv(file.path(OUT_DIR, paste0(cond, "_all_replicates_cluster_assignments.csv")))
+  df$cluster <- factor(df$cluster, levels=c("1_Simple","2_Intermediate","3_Complex"))
+
+  # Linear: FWHM, local peaks, complexity
+  shape_long_lin <- reshape(df[, c("cluster","width.height.2","local.peaks","M.height")],
+    varying=c("width.height.2","local.peaks","M.height"),
+    v.names="value", timevar="index",
+    times=c("FWHM (bp)","Local peaks","Complexity (M/h)"),
+    direction="long")
+
+  p1 <- ggplot(shape_long_lin, aes(x=cluster, y=value, fill=cluster)) +
+    geom_boxplot(outlier.size=0.3, outlier.alpha=0.3) +
+    facet_wrap(~index, scales="free_y", ncol=3) +
+    scale_fill_manual(values=CLUSTER_COLS,
+                      labels=c("Simple","Intermediate","Complex"), name="Cluster") +
+    scale_x_discrete(labels=c("Simple","Intermediate","Complex")) +
+    labs(title=paste("Shape Index Distributions by Cluster —", cond, "Replicates"),
+         x="Cluster", y="Value") +
+    theme_bw(base_size=11) +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
+  ggsave(file.path(OUT_DIR, paste0(cond, "_cluster_shape_boxplots_linear.pdf")),
+         p1, width=12, height=4)
+
+  # Log: height — separate plot
+  p_height <- ggplot(df, aes(x=cluster, y=height, fill=cluster)) +
+    geom_boxplot(outlier.size=0.3, outlier.alpha=0.3) +
+    scale_fill_manual(values=CLUSTER_COLS,
+                      labels=c("Simple","Intermediate","Complex"), name="Cluster") +
+    scale_x_discrete(labels=c("Simple","Intermediate","Complex")) +
+    scale_y_log10() +
+    annotation_logticks(sides="l") +
+    labs(title=paste("Height by Cluster (log10 scale) —", cond, "Replicates"),
+         x="Cluster", y="Height (log10)") +
+    theme_bw(base_size=11) +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
+  ggsave(file.path(OUT_DIR, paste0(cond, "_cluster_height_log_boxplot.pdf")),
+         p_height, width=5, height=4)
+
+  # Log: area — separate plot
+  p_area <- ggplot(df, aes(x=cluster, y=area, fill=cluster)) +
+    geom_boxplot(outlier.size=0.3, outlier.alpha=0.3) +
+    scale_fill_manual(values=CLUSTER_COLS,
+                      labels=c("Simple","Intermediate","Complex"), name="Cluster") +
+    scale_x_discrete(labels=c("Simple","Intermediate","Complex")) +
+    scale_y_log10() +
+    annotation_logticks(sides="l") +
+    labs(title=paste("Area by Cluster (log10 scale) —", cond, "Replicates"),
+         x="Cluster", y="Area (log10)") +
+    theme_bw(base_size=11) +
+    theme(axis.text.x=element_text(angle=45, hjust=1))
+  ggsave(file.path(OUT_DIR, paste0(cond, "_cluster_area_log_boxplot.pdf")),
+         p_area, width=5, height=4)
+
+  cat("Done:", cond, "\n")
+}
+REOF
+
+qsub /rds/general/project/diantonio/live/Yaryna/SIC-ChIP/run_plot_shape_log.pbs
