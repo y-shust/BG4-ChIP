@@ -278,3 +278,304 @@ Rscript summarize_sicchip_k4.R
 EOF
 
 qsub run_summarize_k4.pbs
+
+
+# CORRECTION:
+
+sed -i 's/aes(x=cluster, y=mean_pct, fill=condition)/aes(x=cluster, y=pct, fill=condition)/' \
+    /rds/general/project/diantonio/live/Yaryna/SIC-ChIP/summarize_sicchip_k4.R
+
+sed -i 's/geom_errorbar(aes(ymin=mean_pct-sd, ymax=mean_pct+sd)/geom_errorbar(aes(ymin=pct-sd, ymax=pct+sd)/' \
+    /rds/general/project/diantonio/live/Yaryna/SIC-ChIP/summarize_sicchip_k4.R
+
+qsub run_summarize_k4.pbs
+
+
+
+
+# CENTROID APPROACH TO CLUSTER ASSIGNMENT
+
+cat > /rds/general/project/diantonio/live/Yaryna/SIC-ChIP/summarize_sicchip_k4_centroid.R << 'REOF'
+library(ggplot2)
+
+K_USE <- 4
+BASE_DIR <- "/rds/general/project/diantonio/live/Yaryna/SIC-ChIP"
+OUT_DIR  <- file.path(BASE_DIR, "summary_results_k4")
+dir.create(OUT_DIR, showWarnings = FALSE)
+
+CLUSTER_LEVELS <- c("1_Simple","2_Intermediate_Low","3_Intermediate_High","4_Complex")
+CLUSTER_LABELS <- c("Simple","Intermediate-Low","Intermediate-High","Complex")
+CLUSTER_COLS   <- c("1_Simple"="#74C476",
+                    "2_Intermediate_Low"="#4393C3",
+                    "3_Intermediate_High"="#F4A460",
+                    "4_Complex"="#D6604D")
+COND_COLS <- c("CSB"="#E31A1C","WT"="#1F78B4")
+
+all_samples <- list(
+  list(dir="SIC-ChIP_CSB_Bio1_Tech1_results", prefix="CSB_Bio1_Tech1_results",
+       label="CSB_Bio1_Tech1", condition="CSB"),
+  list(dir="SIC-ChIP_CSB_Bio1_Tech2_results", prefix="CSB_Bio1_Tech2_results",
+       label="CSB_Bio1_Tech2", condition="CSB"),
+  list(dir="SIC-ChIP_CSB_Bio2_Tech1_results", prefix="CSB_Bio2_Tech1_results",
+       label="CSB_Bio2_Tech1", condition="CSB"),
+  list(dir="SIC-ChIP_CSB_Bio2_Tech2_results", prefix="CSB_Bio2_Tech2_results",
+       label="CSB_Bio2_Tech2", condition="CSB"),
+  list(dir="SIC-ChIP_CSB_Bio3_Tech1_results", prefix="CSB_Bio3_Tech1_results",
+       label="CSB_Bio3_Tech1", condition="CSB"),
+  list(dir="SIC-ChIP_CSB_Bio3_Tech2_results", prefix="CSB_Bio3_Tech2_results",
+       label="CSB_Bio3_Tech2", condition="CSB"),
+  list(dir="SIC-ChIP_WT_Bio1_Tech1_results",  prefix="WT_Bio1_Tech1_results",
+       label="WT_Bio1_Tech1",  condition="WT"),
+  list(dir="SIC-ChIP_WT_Bio1_Tech2_results",  prefix="WT_Bio1_Tech2_results",
+       label="WT_Bio1_Tech2",  condition="WT"),
+  list(dir="SIC-ChIP_WT_Bio2_Tech1_results",  prefix="WT_Bio2_Tech1_results",
+       label="WT_Bio2_Tech1",  condition="WT"),
+  list(dir="SIC-ChIP_WT_Bio2_Tech2_results",  prefix="WT_Bio2_Tech2_results",
+       label="WT_Bio2_Tech2",  condition="WT"),
+  list(dir="SIC-ChIP_WT_Bio3_Tech1_results",  prefix="WT_Bio3_Tech1_results",
+       label="WT_Bio3_Tech1",  condition="WT"),
+  list(dir="SIC-ChIP_WT_Bio3_Tech2_results",  prefix="WT_Bio3_Tech2_results",
+       label="WT_Bio3_Tech2",  condition="WT")
+)
+
+# ── Step 1: Load reference replicate (CSB Bio1 Tech1) and label by FWHM rank ──
+cat("=== Loading reference replicate: CSB_Bio1_Tech1 ===\n")
+ref <- all_samples[[1]]
+env_k_ref <- new.env()
+load(file.path(BASE_DIR, ref$dir, paste0(ref$prefix, "_kmeans.RData")), envir=env_k_ref)
+K_ref    <- get("K", envir=env_k_ref)
+ref_centers <- K_ref[[K_USE]]$centers
+
+# Label reference clusters by FWHM rank
+fwhm_col    <- "width.height.2"
+fwhm_order  <- order(ref_centers[, fwhm_col])  # ascending
+ref_label_map <- setNames(CLUSTER_LEVELS, fwhm_order)
+cat("Reference cluster labelling (FWHM rank):\n")
+for (i in seq_along(fwhm_order)) {
+  cat("  Original", fwhm_order[i],
+      "(FWHM=", round(ref_centers[fwhm_order[i], fwhm_col], 3), ") ->",
+      CLUSTER_LEVELS[i], "\n")
+}
+
+# Reference centroids reordered to CLUSTER_LEVELS order
+ref_centers_ordered <- ref_centers[fwhm_order, ]
+
+# ── Helper: find optimal matching of 4 centroids to reference via brute force ──
+best_match <- function(cand_centers, ref_centers_ordered) {
+  perms <- matrix(c(
+    1,2,3,4, 1,2,4,3, 1,3,2,4, 1,3,4,2, 1,4,2,3, 1,4,3,2,
+    2,1,3,4, 2,1,4,3, 2,3,1,4, 2,3,4,1, 2,4,1,3, 2,4,3,1,
+    3,1,2,4, 3,1,4,2, 3,2,1,4, 3,2,4,1, 3,4,1,2, 3,4,2,1,
+    4,1,2,3, 4,1,3,2, 4,2,1,3, 4,2,3,1, 4,3,1,2, 4,3,2,1
+  ), nrow=24, byrow=TRUE)
+
+  best_cost <- Inf
+  best_perm <- 1:4
+  for (p in seq_len(nrow(perms))) {
+    perm <- perms[p, ]
+    cost <- sum(sapply(1:4, function(i) {
+      sum((cand_centers[perm[i], ] - ref_centers_ordered[i, ])^2)
+    }))
+    if (cost < best_cost) {
+      best_cost <- cost
+      best_perm <- perm
+    }
+  }
+  best_perm
+}
+
+# ── Step 2: Process all 12 replicates ────────────────────────────────────────
+all_peaks <- list()
+
+for (s in all_samples) {
+  cat("\nLoading:", s$label, "\n")
+  env_k <- new.env(); env_i <- new.env()
+  load(file.path(BASE_DIR, s$dir, paste0(s$prefix, "_kmeans.RData")), envir=env_k)
+  load(file.path(BASE_DIR, s$dir, paste0(s$prefix, "_peaks_index.RData")), envir=env_i)
+
+  K_list   <- get("K", envir=env_k)
+  df       <- get("peaks.df.index", envir=env_i)
+  clusters <- K_list[[K_USE]]$cluster
+  centers  <- K_list[[K_USE]]$centers
+
+  if (s$label == ref$label) {
+    # Reference: use FWHM rank directly
+    label_map <- ref_label_map
+  } else {
+    # Match this replicate's centroids to reference centroids
+    matched_perm <- best_match(centers, ref_centers_ordered)
+    # matched_perm[i] = which original cluster maps to CLUSTER_LEVELS[i]
+    label_map <- setNames(CLUSTER_LEVELS, matched_perm)
+    cat("  Centroid matching to reference:\n")
+    for (i in 1:4) {
+      cat("    Original", matched_perm[i],
+          "(FWHM=", round(centers[matched_perm[i], fwhm_col], 3), ") ->",
+          CLUSTER_LEVELS[i], "\n")
+    }
+  }
+
+  clusters_relabelled <- label_map[as.character(clusters)]
+  df$cluster    <- factor(clusters_relabelled, levels=CLUSTER_LEVELS)
+  df$sample     <- s$label
+  df$condition  <- s$condition
+  df$bio        <- sub("_Tech.*", "", sub(paste0(s$condition,"_"), "", s$label))
+  df$tech       <- sub(".*_", "", s$label)
+
+  cat("  ->", nrow(df), "peaks |",
+      paste(table(df$cluster), collapse=" / "), "\n")
+  all_peaks[[s$label]] <- df
+}
+
+combined <- do.call(rbind, all_peaks)
+rownames(combined) <- NULL
+combined$condition <- factor(combined$condition, levels=c("WT","CSB"))
+combined$cluster   <- factor(combined$cluster, levels=CLUSTER_LEVELS)
+
+write.csv(combined,
+          file.path(OUT_DIR, "all_replicates_k4_centroid_cluster_assignments.csv"),
+          row.names=FALSE)
+cat("\nTotal peaks:", nrow(combined), "\n")
+
+# ── Step 3: Proportions per sample ───────────────────────────────────────────
+prop_list <- lapply(all_samples, function(s) {
+  d    <- all_peaks[[s$label]]
+  tbl  <- table(d$cluster)
+  props <- round(100 * tbl / sum(tbl), 2)
+  data.frame(sample=s$label, condition=s$condition,
+             cluster=names(props), n_peaks=as.integer(tbl),
+             pct=as.numeric(props))
+})
+prop_df <- do.call(rbind, prop_list)
+prop_df$cluster   <- factor(prop_df$cluster, levels=CLUSTER_LEVELS)
+prop_df$condition <- factor(prop_df$condition, levels=c("WT","CSB"))
+cat("\n=== Cluster proportions per sample ===\n")
+print(prop_df)
+write.csv(prop_df,
+          file.path(OUT_DIR, "all_replicates_k4_centroid_proportions.csv"),
+          row.names=FALSE)
+
+# ── Step 4: Mean proportions per condition ────────────────────────────────────
+prop_summary <- aggregate(pct ~ cluster + condition, data=prop_df, FUN=mean)
+prop_summary$sd <- aggregate(pct ~ cluster + condition, data=prop_df, FUN=sd)$pct
+colnames(prop_summary)[3] <- "mean_pct"
+cat("\n=== Mean proportions per condition ===\n")
+print(prop_summary)
+write.csv(prop_summary,
+          file.path(OUT_DIR, "k4_centroid_proportions_summary.csv"),
+          row.names=FALSE)
+
+# ── Step 5: Plots ─────────────────────────────────────────────────────────────
+
+# Plot 1: Stacked bar all samples
+p1 <- ggplot(prop_df, aes(x=sample, y=pct, fill=cluster)) +
+  geom_bar(stat="identity", position="stack") +
+  scale_fill_manual(values=CLUSTER_COLS, labels=CLUSTER_LABELS, name="Cluster") +
+  facet_wrap(~condition, scales="free_x") +
+  labs(title="SIC-ChIP k=4 Cluster Proportions (centroid-matched) — CSB vs WT",
+       x="Sample", y="% of peaks") +
+  theme_bw(base_size=11) +
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+ggsave(file.path(OUT_DIR, "k4_centroid_proportions_all_samples.pdf"),
+       p1, width=12, height=5)
+
+# Plot 2: Grouped bar mean ± SD
+p2 <- ggplot(prop_summary, aes(x=cluster, y=mean_pct, fill=condition)) +
+  geom_bar(stat="identity", position=position_dodge(0.8), width=0.7) +
+  geom_errorbar(aes(ymin=mean_pct-sd, ymax=mean_pct+sd),
+                position=position_dodge(0.8), width=0.25) +
+  scale_fill_manual(values=COND_COLS, name="Condition") +
+  scale_x_discrete(labels=CLUSTER_LABELS) +
+  labs(title="k=4 Cluster Proportions (centroid-matched) — CSB vs WT (mean ± SD)",
+       x="Cluster", y="% of peaks") +
+  theme_bw(base_size=12) +
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+ggsave(file.path(OUT_DIR, "k4_centroid_proportions_grouped.pdf"),
+       p2, width=8, height=5)
+
+# Plot 3: FWHM boxplots CSB vs WT per cluster
+p3 <- ggplot(combined, aes(x=condition, y=width.height.2, fill=condition)) +
+  geom_boxplot(outlier.size=0.3, outlier.alpha=0.2) +
+  facet_wrap(~cluster, scales="free_y",
+             labeller=labeller(cluster=setNames(CLUSTER_LABELS, CLUSTER_LEVELS))) +
+  scale_fill_manual(values=COND_COLS, name="Condition") +
+  labs(title="FWHM by Cluster (centroid-matched, k=4) — CSB vs WT",
+       x="Condition", y="FWHM (bp)") +
+  theme_bw(base_size=11)
+ggsave(file.path(OUT_DIR, "k4_centroid_FWHM_boxplots.pdf"),
+       p3, width=12, height=4)
+
+# Plot 4: All shape indices per cluster per condition
+shape_long <- reshape(combined[, c("condition","cluster","height","area",
+                                   "width.height.2","local.peaks","M.height")],
+  varying=c("height","area","width.height.2","local.peaks","M.height"),
+  v.names="value", timevar="index",
+  times=c("Height","Area","FWHM (bp)","Local peaks","Complexity (M/h)"),
+  direction="long")
+shape_long$cluster_label <- factor(shape_long$cluster,
+  levels=CLUSTER_LEVELS, labels=CLUSTER_LABELS)
+
+p4 <- ggplot(shape_long, aes(x=condition, y=value, fill=condition)) +
+  geom_boxplot(outlier.size=0.2, outlier.alpha=0.15) +
+  facet_grid(index ~ cluster_label, scales="free_y") +
+  scale_fill_manual(values=COND_COLS, name="Condition") +
+  labs(title="Shape Indices by Cluster (centroid-matched, k=4) — CSB vs WT",
+       x="Condition", y="Value") +
+  theme_bw(base_size=9) +
+  theme(strip.text=element_text(size=8))
+ggsave(file.path(OUT_DIR, "k4_centroid_all_shape_indices.pdf"),
+       p4, width=12, height=12)
+
+# ── Step 6: Statistics ────────────────────────────────────────────────────────
+cat("\n=== Chi-square on cluster proportions CSB vs WT ===\n")
+csb_counts <- table(combined$cluster[combined$condition=="CSB"])
+wt_counts  <- table(combined$cluster[combined$condition=="WT"])
+count_mat  <- rbind(CSB=as.numeric(csb_counts), WT=as.numeric(wt_counts))
+colnames(count_mat) <- names(csb_counts)
+print(count_mat)
+print(chisq.test(count_mat))
+
+cat("\n=== Mann-Whitney U tests (CSB vs WT) per cluster ===\n")
+shape_cols <- c("height","area","width.height.2","local.peaks","M.height")
+results <- list()
+for (cl in CLUSTER_LEVELS) {
+  for (sc in shape_cols) {
+    csb_v <- combined[[sc]][combined$cluster==cl & combined$condition=="CSB"]
+    wt_v  <- combined[[sc]][combined$cluster==cl & combined$condition=="WT"]
+    if (length(csb_v) > 0 && length(wt_v) > 0) {
+      mw <- wilcox.test(csb_v, wt_v, alternative="two.sided")
+      results[[length(results)+1]] <- data.frame(
+        cluster=cl, index=sc, W=mw$statistic, p=mw$p.value,
+        sig=ifelse(mw$p.value<0.001,"***",
+                   ifelse(mw$p.value<0.01,"**",
+                          ifelse(mw$p.value<0.05,"*","ns"))))
+    }
+  }
+}
+stats_df <- do.call(rbind, results)
+rownames(stats_df) <- NULL
+print(stats_df)
+write.csv(stats_df,
+          file.path(OUT_DIR, "k4_centroid_mannwhitney_results.csv"),
+          row.names=FALSE)
+
+cat("\n=== summarize_sicchip_k4_centroid.R complete ===\n")
+cat("Output in:", OUT_DIR, "\n")
+REOF
+
+cat > /rds/general/project/diantonio/live/Yaryna/SIC-ChIP/run_summarize_k4_centroid.pbs << 'EOF'
+#!/bin/bash
+#PBS -lwalltime=00:30:00
+#PBS -lselect=1:ncpus=1:mem=16gb
+
+module load miniforge/3
+eval "$(~/miniforge3/bin/conda shell.bash hook)"
+conda activate sicchip_env
+
+export LC_ALL=C
+export LC_CTYPE=C
+
+cd /rds/general/project/diantonio/live/Yaryna/SIC-ChIP
+Rscript summarize_sicchip_k4_centroid.R
+EOF
+
+qsub run_summarize_k4_centroid.pbs
