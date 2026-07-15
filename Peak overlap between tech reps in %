@@ -1,0 +1,24 @@
+cd /rds/general/project/diantonio/live/Yaryna
+module load BEDTools/2.31.0-GCC-12.3.0
+
+# CSB overlaps as % of union (peaks in either replicate)
+for BIO in Bio1 Bio2 Bio3; do
+    T1=$(wc -l < ChIP/${BIO}/CS1AN_CSB_BG4_${BIO}_Tech1_peaks.narrowPeak)
+    T2=$(wc -l < ChIP/${BIO}/CS1AN_CSB_BG4_${BIO}_Tech2_peaks.narrowPeak)
+    OV=$(bedtools intersect -u \
+        -a ChIP/${BIO}/CS1AN_CSB_BG4_${BIO}_Tech1_peaks.narrowPeak \
+        -b ChIP/${BIO}/CS1AN_CSB_BG4_${BIO}_Tech2_peaks.narrowPeak | wc -l)
+    UNION=$((T1 + T2 - OV))
+    echo "CSB ${BIO}: Tech1=${T1} Tech2=${T2} Overlap=${OV} Union=${UNION} Pct=$(echo "scale=1; $OV*100/$UNION" | bc)%"
+done
+
+# WT overlaps as % of union
+for BIO in Bio1 Bio2 Bio3; do
+    T1=$(wc -l < ChIP_WT/${BIO}/CS1AN_WT_BG4_${BIO}_Tech1_peaks.narrowPeak)
+    T2=$(wc -l < ChIP_WT/${BIO}/CS1AN_WT_BG4_${BIO}_Tech2_peaks.narrowPeak)
+    OV=$(bedtools intersect -u \
+        -a ChIP_WT/${BIO}/CS1AN_WT_BG4_${BIO}_Tech1_peaks.narrowPeak \
+        -b ChIP_WT/${BIO}/CS1AN_WT_BG4_${BIO}_Tech2_peaks.narrowPeak | wc -l)
+    UNION=$((T1 + T2 - OV))
+    echo "WT ${BIO}: Tech1=${T1} Tech2=${T2} Overlap=${OV} Union=${UNION} Pct=$(echo "scale=1; $OV*100/$UNION" | bc)%"
+done
