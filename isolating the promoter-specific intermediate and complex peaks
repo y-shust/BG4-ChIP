@@ -1,0 +1,19 @@
+cd /rds/general/project/diantonio/live/Yaryna/SIC-ChIP/summary_results_centroid
+
+for COND in CSB WT; do
+    awk -F'\t' 'NR>1 && $8~/[Pp]romoter/ && $16!="NA" && $16!="" {print $16}' \
+        ${COND}_centroid_3_Complex_homer_annotated.txt | \
+        sort | uniq > ${COND}_centroid_3_Complex_promoter_gene_list.txt
+    COUNT=$(wc -l < ${COND}_centroid_3_Complex_promoter_gene_list.txt)
+    echo "${COND} Complex promoter genes: ${COUNT}"
+done
+
+
+
+for COND in CSB WT; do
+    awk -F'\t' 'NR>1 && $8~/[Pp]romoter/ && $16!="NA" && $16!="" {print $16}' \
+        ${COND}_centroid_2_Intermediate_homer_annotated.txt | \
+        sort | uniq > ${COND}_centroid_2_Intermediate_promoter_gene_list.txt
+    COUNT=$(wc -l < ${COND}_centroid_2_Intermediate_promoter_gene_list.txt)
+    echo "${COND} Intermediate promoter genes: ${COUNT}"
+done
